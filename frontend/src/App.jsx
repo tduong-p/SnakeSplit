@@ -12,10 +12,10 @@ export default function App() {
   const needsUserSelect = !loading && (!activeUserId || !users.find((u) => u._id === activeUserId));
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-slate-900 font-body">
       <Navbar />
       {needsUserSelect && <UserSelectModal />}
-      <main className="max-w-5xl mx-auto px-4 py-6">
+      <main className="max-w-5xl mx-auto px-4 py-8">
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/boards" element={<Boards />} />

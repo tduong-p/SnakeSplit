@@ -2,7 +2,12 @@
 export default {
   content: ['./index.html', './src/**/*.{js,jsx}'],
   theme: {
-    extend: {},
+    extend: {
+      fontFamily: {
+        heading: ['Lexend', 'sans-serif'],
+        body: ['Source Sans 3', 'sans-serif'],
+      },
+    },
   },
   plugins: [],
 };
