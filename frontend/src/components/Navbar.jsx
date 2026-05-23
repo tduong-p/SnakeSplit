@@ -26,6 +26,7 @@ export default function Navbar() {
           <span className="text-white font-bold text-lg tracking-tight">SnakeSplit</span>
           {navLink('/', 'Settlement')}
           {navLink('/boards', 'Boards')}
+          {navLink('/members', 'Members')}
         </div>
 
         <div className="flex items-center gap-2">

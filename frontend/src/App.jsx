@@ -4,6 +4,7 @@ import UserSelectModal from './components/UserSelectModal';
 import Home from './pages/Home';
 import Boards from './pages/Boards';
 import BoardDetail from './pages/BoardDetail';
+import Members from './pages/Members';
 import { useUser } from './context/UserContext';
 
 export default function App() {
@@ -19,6 +20,7 @@ export default function App() {
           <Route path="/" element={<Home />} />
           <Route path="/boards" element={<Boards />} />
           <Route path="/boards/:id" element={<BoardDetail />} />
+          <Route path="/members" element={<Members />} />
         </Routes>
       </main>
     </div>
