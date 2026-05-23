@@ -20,6 +20,12 @@ app.use('/api/debts', debtRoutes);
 
 app.get('/api/health', (req, res) => res.json({ status: 'ok' }));
 
+// Global async error handler — catches errors thrown in async route handlers
+app.use((err, req, res, next) => {
+  console.error('[API Error]', err.message);
+  res.status(err.status || 500).json({ error: err.message || 'Internal server error' });
+});
+
 // Local dev only — Vercel uses module.exports
 if (require.main === module) {
   const PORT = process.env.PORT || 3001;
