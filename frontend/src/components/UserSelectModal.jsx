@@ -19,8 +19,8 @@ export default function UserSelectModal() {
       await api.post('/users', { name: newName.trim(), color });
       await refreshUsers();
       setNewName('');
-    } catch {
-      setError('Failed to add member');
+    } catch (err) {
+      setError(err.displayMessage || err.response?.data?.error || 'Failed to add member');
     } finally {
       setAdding(false);
     }

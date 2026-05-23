@@ -150,6 +150,8 @@ router.patch('/:id/expenses/:expenseId', async (req, res, next) => {
         board.hostId.toString(),
         ...board.participantIds.map((p) => p.toString()),
       ]);
+      // Replace the full map so cleared cells (sent as '' or omitted) are actually removed
+      expense.amounts = new Map();
       for (const [uid, amt] of Object.entries(amounts)) {
         if (validIds.has(uid) && typeof amt === 'number' && amt >= 0) {
           expense.amounts.set(uid, amt);

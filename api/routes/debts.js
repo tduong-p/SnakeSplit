@@ -59,12 +59,25 @@ async function computeNetBalances() {
     }
   }
 
+  // Snapshot balance before applying confirmations so we can detect sign-flips
+  const preConfirm = { ...netBalance };
+
   const confirmations = await SettlementConfirmation.find({});
   for (const conf of confirmations) {
     const fromId = conf.fromUserId.toString();
     const toId = conf.toUserId.toString();
     netBalance[fromId] = (netBalance[fromId] || 0) + conf.amount;
     netBalance[toId] = (netBalance[toId] || 0) - conf.amount;
+  }
+
+  // Clamp: if a confirmation pushed someone's balance past 0 (sign flipped vs pre-board state),
+  // it means the board already completed and the confirmation is now orphaned — treat as 0.
+  for (const userId of Object.keys(netBalance)) {
+    const pre = preConfirm[userId] || 0;
+    const post = netBalance[userId];
+    if ((pre >= 0 && post < 0) || (pre <= 0 && post > 0)) {
+      netBalance[userId] = 0;
+    }
   }
 
   return netBalance;
