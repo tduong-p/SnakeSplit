@@ -1,0 +1,16 @@
+{
+  "name": "snakesplit",
+  "version": "1.0.0",
+  "description": "Shared expense tracker for friend groups",
+  "main": "api/index.js",
+  "scripts": {
+    "dev:api": "node api/index.js",
+    "dev:frontend": "cd frontend && npm run dev"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "mongoose": "^8.5.0"
+  }
+}
