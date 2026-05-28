@@ -54,10 +54,11 @@ export default function Boards() {
       </div>
 
       {/* Filter tabs */}
-      <div className="flex gap-1 p-1 bg-slate-800 rounded-xl w-fit border border-slate-700">
+      <div className="flex gap-1 p-1 bg-slate-800 rounded-xl border border-slate-700 overflow-x-auto scrollbar-none w-full sm:w-fit">
         {FILTERS.map((f) => (
           <button key={f} onClick={() => setFilter(f)}
-            className={`px-4 py-1.5 rounded-lg text-sm font-medium capitalize transition-all duration-150 cursor-pointer ${
+            className={`flex-1 sm:flex-none px-4 py-2 rounded-lg text-sm font-medium capitalize
+                        transition-all duration-150 cursor-pointer whitespace-nowrap min-h-[40px] ${
               filter === f
                 ? 'bg-blue-600 text-white shadow-sm'
                 : 'text-slate-400 hover:text-slate-200'

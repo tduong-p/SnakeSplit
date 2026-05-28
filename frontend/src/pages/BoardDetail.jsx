@@ -129,10 +129,10 @@ export default function BoardDetail() {
           </div>
 
           {/* Actions */}
-          <div className="flex gap-2 flex-wrap items-start">
+          <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto items-stretch sm:items-start">
             {board.status === 'active' && <>
               <button onClick={() => setShowSplit(true)}
-                className="btn-outline flex items-center gap-1.5">
+                className="btn-outline flex items-center justify-center gap-1.5">
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round"
                     d="M7.5 21L3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 3M21 7.5H7.5" />
@@ -145,7 +145,8 @@ export default function BoardDetail() {
                     () => api.post(`/boards/${id}/close`))}
                   disabled={actionLoading === 'close'}
                   className="bg-amber-500 hover:bg-amber-400 text-white font-semibold px-4 py-2.5
-                             rounded-xl text-sm transition-all active:scale-[0.97] disabled:opacity-40">
+                             rounded-xl text-sm transition-all active:scale-[0.97] disabled:opacity-40
+                             min-h-[44px]">
                   {actionLoading === 'close' ? 'Closing...' : 'Close Board'}
                 </button>
               )}
@@ -159,7 +160,7 @@ export default function BoardDetail() {
                 {actionLoading === 'complete' ? '...' : 'Mark Completed'}
               </button>
             )}
-            <button onClick={() => navigate('/boards')} className="btn-ghost">
+            <button onClick={() => navigate('/boards')} className="btn-ghost text-center">
               ← Back
             </button>
           </div>

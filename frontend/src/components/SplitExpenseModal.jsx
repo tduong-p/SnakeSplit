@@ -45,8 +45,9 @@ export default function SplitExpenseModal({ board, onClose, onAdded }) {
   const clearAll = () => setSplitAmong([]);
 
   return (
-    <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="card w-full max-w-md p-6 shadow-2xl">
+    <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
+      <div className="card w-full sm:max-w-md p-6 shadow-2xl rounded-b-none sm:rounded-2xl
+                      max-h-[92dvh] overflow-y-auto">
 
         <div className="flex items-center justify-between mb-6">
           <h2 className="font-heading text-lg font-bold text-slate-50">Split Expense</h2>

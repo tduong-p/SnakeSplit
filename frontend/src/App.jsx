@@ -15,7 +15,7 @@ export default function App() {
     <div className="min-h-screen bg-slate-900 font-body">
       <Navbar />
       {needsUserSelect && <UserSelectModal />}
-      <main className="max-w-5xl mx-auto px-4 py-8">
+      <main className="max-w-5xl mx-auto px-4 pt-6 pb-28 sm:py-8 sm:pb-8">
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/boards" element={<Boards />} />

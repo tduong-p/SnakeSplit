@@ -35,7 +35,7 @@ export default function Members() {
       setNewName('');
       setNewColor(PRESET_COLORS[Math.floor(Math.random() * PRESET_COLORS.length)]);
     } catch (err) {
-      setAddError(err.response?.data?.error || 'Failed to add member');
+      setAddError(err.displayMessage || err.response?.data?.error || 'Failed to add member');
     } finally { setAdding(false); }
   };
 
@@ -53,7 +53,7 @@ export default function Members() {
       await refreshUsers();
       setEditingId(null);
     } catch (err) {
-      setEditError(err.response?.data?.error || 'Failed to save');
+      setEditError(err.displayMessage || err.response?.data?.error || 'Failed to save');
     } finally { setSaving(false); }
   };
 
@@ -65,7 +65,7 @@ export default function Members() {
       if (activeUserId === id) selectUser('');
       await refreshUsers();
     } catch (err) {
-      setDeleteError(err.response?.data?.error || 'Failed to remove member');
+      setDeleteError(err.displayMessage || err.response?.data?.error || 'Failed to remove member');
     } finally { setDeletingId(null); }
   };
 

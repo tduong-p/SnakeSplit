@@ -31,7 +31,7 @@ export default function Home() {
       });
       fetchDebts();
     } catch (e) {
-      alert(e.response?.data?.error || 'Failed to confirm');
+      alert(e.displayMessage || e.response?.data?.error || 'Failed to confirm');
     } finally {
       setConfirming(null);
     }
@@ -50,25 +50,25 @@ export default function Home() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-start justify-between gap-3">
         <div>
           <h1 className="font-heading text-2xl font-bold text-slate-50">Settlement</h1>
           <p className="text-sm text-slate-400 mt-0.5">Optimized transfers across all pending boards</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 shrink-0">
           <span className="text-sm text-slate-500 hidden sm:block">Viewing as</span>
           <select
             value={viewingId || ''}
             onChange={(e) => handleViewChange(e.target.value)}
             className="bg-slate-800 border border-slate-700 text-slate-200 text-sm rounded-xl
                        px-3 py-2 cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500
-                       hover:bg-slate-700 transition-colors"
+                       hover:bg-slate-700 transition-colors max-w-[110px] sm:max-w-none min-h-[44px]"
           >
             <option value="" disabled>Select</option>
             {users.map((u) => <option key={u._id} value={u._id}>{u.name}</option>)}
           </select>
           {viewingUser && (
-            <span className="w-8 h-8 rounded-full flex items-center justify-center text-white
+            <span className="w-9 h-9 rounded-full flex items-center justify-center text-white
                              text-xs font-bold font-heading shrink-0"
               style={{ backgroundColor: viewingUser.color }}>
               {viewingUser.name[0].toUpperCase()}
@@ -165,34 +165,38 @@ function DebtCard({ s, variant, viewingId, onConfirm, confirming }) {
   };
 
   return (
-    <div className={`flex items-center justify-between p-4 rounded-2xl border ${variantStyles[variant]}`}>
-      <div className="flex items-center gap-3 min-w-0">
-        <span className="w-9 h-9 rounded-full flex items-center justify-center text-white
-                         text-sm font-bold font-heading shrink-0"
-          style={{ backgroundColor: s.from.color }}>
-          {s.from.name[0].toUpperCase()}
-        </span>
-        <div className="flex items-center gap-2 text-sm min-w-0">
-          <span className="font-semibold text-slate-100 truncate">{s.from.name}</span>
-          <svg className="w-3.5 h-3.5 text-slate-600 shrink-0" fill="none" viewBox="0 0 24 24"
-            stroke="currentColor" strokeWidth={2.5}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6" />
-          </svg>
-          <span className="font-semibold text-slate-100 truncate">{s.to.name}</span>
+    <div className={`rounded-2xl border ${variantStyles[variant]} ${isReceiver ? 'p-3' : 'p-4'}`}>
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2.5 min-w-0">
+          <span className="w-9 h-9 rounded-full flex items-center justify-center text-white
+                           text-sm font-bold font-heading shrink-0"
+            style={{ backgroundColor: s.from.color }}>
+            {s.from.name[0].toUpperCase()}
+          </span>
+          <div className="flex items-center gap-1.5 text-sm min-w-0">
+            <span className="font-semibold text-slate-100 truncate max-w-[70px] sm:max-w-none">
+              {s.from.name}
+            </span>
+            <svg className="w-3 h-3 text-slate-600 shrink-0" fill="none" viewBox="0 0 24 24"
+              stroke="currentColor" strokeWidth={2.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6" />
+            </svg>
+            <span className="font-semibold text-slate-100 truncate max-w-[70px] sm:max-w-none">
+              {s.to.name}
+            </span>
+          </div>
         </div>
-      </div>
-
-      <div className="flex items-center gap-3 shrink-0 ml-4">
-        <span className={`font-heading font-bold tabular-nums ${amtColor[variant]}`}>
+        <span className={`font-heading font-bold tabular-nums shrink-0 text-sm ${amtColor[variant]}`}>
           {s.amount.toLocaleString('vi-VN')} ₫
         </span>
-        {isReceiver && (
-          <button onClick={() => onConfirm(s)} disabled={confirming === key}
-            className="btn-success px-3 py-1.5 text-xs">
-            {confirming === key ? '...' : 'Confirm Receipt'}
-          </button>
-        )}
       </div>
+
+      {isReceiver && (
+        <button onClick={() => onConfirm(s)} disabled={confirming === key}
+          className="mt-2.5 w-full btn-success text-sm py-2.5">
+          {confirming === key ? '...' : '✓ Confirm Receipt'}
+        </button>
+      )}
     </div>
   );
 }

@@ -20,22 +20,27 @@ function colTotal(expense, people) {
 // Small clickable avatar row for selecting who paid
 function PayerPicker({ people, value, onChange }) {
   return (
-    <div className="flex justify-center gap-1 mt-1.5 flex-wrap">
+    <div className="flex justify-center gap-0.5 mt-1.5 flex-wrap">
       {people.map((p) => (
+        // Outer button has larger hit area (p-1.5 → ~36px) while visual stays w-6 h-6
         <button
           key={p._id}
           type="button"
           title={p.name}
           onClick={() => onChange(p._id)}
-          className={`w-6 h-6 rounded-full flex items-center justify-center text-white
-                       text-xs font-bold transition-all cursor-pointer ${
-            value === p._id
-              ? 'ring-2 ring-offset-1 ring-offset-slate-900 ring-blue-400 scale-110'
-              : 'opacity-40 hover:opacity-80'
-          }`}
-          style={{ backgroundColor: p.color }}
+          className="p-1.5 rounded-full cursor-pointer"
         >
-          {p.name[0].toUpperCase()}
+          <span
+            className={`w-6 h-6 rounded-full flex items-center justify-center text-white
+                         text-xs font-bold transition-all block ${
+              value === p._id
+                ? 'ring-2 ring-offset-1 ring-offset-slate-900 ring-blue-400 scale-110'
+                : 'opacity-40 hover:opacity-80'
+            }`}
+            style={{ backgroundColor: p.color }}
+          >
+            {p.name[0].toUpperCase()}
+          </span>
         </button>
       ))}
     </div>
