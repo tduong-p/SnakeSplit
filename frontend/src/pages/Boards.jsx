@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../api/axios';
 import CreateBoardModal from '../components/CreateBoardModal';
+import EditBoardModal from '../components/EditBoardModal';
 
 const STATUS = {
   active:    { label: 'Active',    badge: 'badge-active',    bar: 'bg-emerald-500' },
@@ -17,6 +18,8 @@ export default function Boards() {
   const [filter, setFilter] = useState('all');
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
+  const [editingBoard, setEditingBoard] = useState(null);
+  const [deletingId, setDeletingId] = useState(null);
 
   const fetchBoards = (status) => {
     setLoading(true);
@@ -28,6 +31,20 @@ export default function Boards() {
   };
 
   useEffect(() => { fetchBoards(filter); }, [filter]);
+
+  const handleDelete = async (e, boardId) => {
+    e.stopPropagation();
+    if (!confirm('Delete this board? This cannot be undone.')) return;
+    setDeletingId(boardId);
+    try {
+      await api.delete(`/boards/${boardId}`);
+      setBoards((prev) => prev.filter((b) => b._id !== boardId));
+    } catch (err) {
+      alert(err.displayMessage || err.response?.data?.error || 'Failed to delete board');
+    } finally {
+      setDeletingId(null);
+    }
+  };
 
   const boardTotal = (board) =>
     (board.expenses || []).reduce((sum, exp) => {
@@ -94,7 +111,8 @@ export default function Boards() {
             const participantCount = board.participantIds?.length || 0;
 
             return (
-              <button key={board._id} onClick={() => navigate(`/boards/${board._id}`)}
+              <div key={board._id}
+                onClick={() => navigate(`/boards/${board._id}`)}
                 className="card p-5 text-left hover:border-blue-500/50 hover:bg-slate-700/30
                            transition-all duration-150 active:scale-[0.99] cursor-pointer
                            flex flex-col gap-3 group overflow-hidden relative">
@@ -104,10 +122,40 @@ export default function Boards() {
 
                 <div className="pl-2">
                   <div className="flex items-start justify-between gap-2 mb-1">
-                    <span className="font-heading font-bold text-slate-50 text-base leading-tight group-hover:text-white">
+                    <span className="font-heading font-bold text-slate-50 text-base leading-tight group-hover:text-white flex-1 min-w-0">
                       {board.name}
                     </span>
-                    <span className={badge}>{label}</span>
+                    <div className="flex items-center gap-1 shrink-0">
+                      <span className={badge}>{label}</span>
+                      {board.status === 'active' && (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); setEditingBoard(board); }}
+                          title="Edit board"
+                          className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-500
+                                     hover:text-blue-400 hover:bg-blue-500/10 transition-colors cursor-pointer">
+                          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round"
+                              d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z" />
+                          </svg>
+                        </button>
+                      )}
+                      <button
+                        onClick={(e) => handleDelete(e, board._id)}
+                        disabled={deletingId === board._id}
+                        title="Delete board"
+                        className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-500
+                                   hover:text-red-400 hover:bg-red-500/10 transition-colors cursor-pointer
+                                   disabled:opacity-40">
+                        {deletingId === board._id ? (
+                          <div className="w-3 h-3 border border-red-400 border-t-transparent rounded-full animate-spin" />
+                        ) : (
+                          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round"
+                              d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
+                          </svg>
+                        )}
+                      </button>
+                    </div>
                   </div>
 
                   <div className="flex items-center gap-3 text-xs text-slate-500">
@@ -132,7 +180,7 @@ export default function Boards() {
                     <span className="text-xs text-emerald-400/80">All settled</span>
                   )}
                 </div>
-              </button>
+              </div>
             );
           })}
         </div>
@@ -142,6 +190,17 @@ export default function Boards() {
         <CreateBoardModal
           onClose={() => setShowCreate(false)}
           onCreate={(board) => { setShowCreate(false); navigate(`/boards/${board._id}`); }}
+        />
+      )}
+
+      {editingBoard && (
+        <EditBoardModal
+          board={editingBoard}
+          onClose={() => setEditingBoard(null)}
+          onUpdated={(updated) => {
+            setBoards((prev) => prev.map((b) => b._id === updated._id ? updated : b));
+            setEditingBoard(null);
+          }}
         />
       )}
     </div>

@@ -194,6 +194,49 @@ router.delete('/:id/expenses/:expenseId', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+router.delete('/:id', async (req, res, next) => {
+  try {
+    await connectDB();
+    const board = await Board.findByIdAndDelete(req.params.id);
+    if (!board) return res.status(404).json({ error: 'Board not found' });
+    res.json({ success: true });
+  } catch (err) { next(err); }
+});
+
+router.patch('/:id/members', async (req, res, next) => {
+  try {
+    await connectDB();
+    const board = await Board.findById(req.params.id);
+    if (!board) return res.status(404).json({ error: 'Board not found' });
+    if (board.status !== 'active') return res.status(400).json({ error: 'Board is not active' });
+
+    const { action, userId } = req.body;
+    if (!userId) return res.status(400).json({ error: 'userId is required' });
+
+    if (action === 'add') {
+      const already = board.participantIds.some((p) => p.toString() === userId);
+      const isHost = board.hostId.toString() === userId;
+      if (!already && !isHost) {
+        board.participantIds.push(userId);
+        board.paymentStatus.set(userId, false);
+      }
+    } else if (action === 'remove') {
+      board.participantIds = board.participantIds.filter((p) => p.toString() !== userId);
+      board.paymentStatus.delete(userId);
+      // Remove their consumed amounts from every expense so debts stay accurate
+      for (const expense of board.expenses) {
+        expense.amounts.delete(userId);
+      }
+    } else {
+      return res.status(400).json({ error: 'action must be "add" or "remove"' });
+    }
+
+    await board.save();
+    await populateBoard(board);
+    res.json(board);
+  } catch (err) { next(err); }
+});
+
 router.patch('/:id/payments/:userId', async (req, res, next) => {
   try {
     await connectDB();
