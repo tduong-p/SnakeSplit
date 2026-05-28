@@ -1,14 +1,19 @@
 import { useState } from 'react';
+import { useUser } from '../context/UserContext';
 import api from '../api/axios';
 
 export default function SplitExpenseModal({ board, onClose, onAdded }) {
+  const { activeUserId } = useUser();
+  const everyone = [{ ...board.hostId, isHost: true }, ...board.participantIds];
+
+  const defaultPayer = everyone.find((u) => u._id === activeUserId)?._id || board.hostId._id;
+
   const [label, setLabel] = useState('');
   const [totalAmount, setTotalAmount] = useState('');
+  const [paidBy, setPaidBy] = useState(defaultPayer);
   const [splitAmong, setSplitAmong] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-
-  const everyone = [{ ...board.hostId, isHost: true }, ...board.participantIds];
 
   const toggle = (id) =>
     setSplitAmong((p) => p.includes(id) ? p.filter((x) => x !== id) : [...p, id]);
@@ -26,11 +31,11 @@ export default function SplitExpenseModal({ board, onClose, onAdded }) {
     setLoading(true);
     try {
       const res = await api.post(`/boards/${board._id}/expenses`, {
-        label: label.trim(), totalAmount: amt, splitAmong, isSplit: true,
+        label: label.trim(), totalAmount: amt, splitAmong, isSplit: true, paidBy,
       });
       onAdded(res.data);
     } catch (err) {
-      setError(err.response?.data?.error || 'Failed to add expense');
+      setError(err.displayMessage || err.response?.data?.error || 'Failed to add expense');
     } finally {
       setLoading(false);
     }
@@ -71,6 +76,37 @@ export default function SplitExpenseModal({ board, onClose, onAdded }) {
               placeholder="100000" min="0" className="input-dark" />
           </div>
 
+          {/* Paid by */}
+          <div>
+            <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">
+              Paid by
+            </label>
+            <div className="flex gap-2 flex-wrap">
+              {everyone.map((u) => (
+                <button
+                  key={u._id}
+                  type="button"
+                  onClick={() => setPaidBy(u._id)}
+                  className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-medium
+                               transition-all cursor-pointer border ${
+                    paidBy === u._id
+                      ? 'border-blue-500 bg-blue-500/15 text-blue-300'
+                      : 'border-slate-700 bg-slate-700/40 text-slate-400 hover:text-slate-200 hover:border-slate-600'
+                  }`}
+                >
+                  <span
+                    className="w-5 h-5 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0"
+                    style={{ backgroundColor: u.color }}
+                  >
+                    {u.name[0].toUpperCase()}
+                  </span>
+                  {u.name}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Split among */}
           <div>
             <div className="flex items-center justify-between mb-2">
               <label className="text-xs font-semibold text-slate-400 uppercase tracking-wide">

@@ -2,8 +2,10 @@ const mongoose = require('mongoose');
 
 const expenseSchema = new mongoose.Schema({
   label: { type: String, default: '' },
-  // amounts: { userId: number } — what each person owes for this item
+  // amounts: { userId: number } — what each person consumed for this item
   amounts: { type: Map, of: Number, default: {} },
+  // paidBy: who fronted the money; others in amounts owe this person their share
+  paidBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
   isSplit: { type: Boolean, default: false },
 }, { timestamps: true });
 

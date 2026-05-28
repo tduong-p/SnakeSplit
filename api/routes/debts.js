@@ -46,15 +46,13 @@ async function computeNetBalances() {
 
   for (const board of boards) {
     const hostId = board.hostId.toString();
-    for (const participantId of board.participantIds) {
-      const pid = participantId.toString();
-      let total = 0;
-      for (const expense of board.expenses) {
-        total += expense.amounts.get(pid) || 0;
-      }
-      if (total > 0) {
-        netBalance[pid] = (netBalance[pid] || 0) - total;
-        netBalance[hostId] = (netBalance[hostId] || 0) + total;
+    for (const expense of board.expenses) {
+      // Fall back to board host for legacy expenses without paidBy
+      const payerId = expense.paidBy ? expense.paidBy.toString() : hostId;
+      for (const [uid, amt] of expense.amounts) {
+        if (!amt || uid === payerId) continue;
+        netBalance[uid] = (netBalance[uid] || 0) - amt;
+        netBalance[payerId] = (netBalance[payerId] || 0) + amt;
       }
     }
   }

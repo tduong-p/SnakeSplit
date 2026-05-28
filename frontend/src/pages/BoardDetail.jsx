@@ -17,6 +17,50 @@ function rowTotal(board, personId) {
   return (board.expenses || []).reduce((s, e) => s + ((e.amounts || {})[personId] || 0), 0);
 }
 
+// Optimized (min-cash-flow) settlement for a single board with potentially multiple payers
+function getBoardSettlements(board) {
+  const people = [{ ...board.hostId }, ...(board.participantIds || [])];
+  const peopleMap = Object.fromEntries(people.map((p) => [p._id, p]));
+  const net = {};
+
+  for (const exp of (board.expenses || [])) {
+    const amounts = exp.amounts || {};
+    const rawPayer = exp.paidBy?._id || exp.paidBy || board.hostId._id;
+    const payerStr = rawPayer?.toString ? rawPayer.toString() : rawPayer;
+
+    for (const [uid, amt] of Object.entries(amounts)) {
+      if (!amt || uid === payerStr) continue;
+      net[uid] = (net[uid] || 0) - amt;
+      net[payerStr] = (net[payerStr] || 0) + amt;
+    }
+  }
+
+  const creditors = [];
+  const debtors = [];
+  for (const [id, bal] of Object.entries(net)) {
+    if (bal > 0.5) creditors.push({ id, amount: bal });
+    else if (bal < -0.5) debtors.push({ id, amount: -bal });
+  }
+  creditors.sort((a, b) => b.amount - a.amount);
+  debtors.sort((a, b) => b.amount - a.amount);
+
+  const transfers = [];
+  let i = 0, j = 0;
+  while (i < debtors.length && j < creditors.length) {
+    const amount = Math.min(debtors[i].amount, creditors[j].amount);
+    transfers.push({
+      from: peopleMap[debtors[i].id] || { _id: debtors[i].id, name: '?' },
+      to:   peopleMap[creditors[j].id] || { _id: creditors[j].id, name: '?' },
+      amount: Math.round(amount),
+    });
+    debtors[i].amount -= amount;
+    creditors[j].amount -= amount;
+    if (debtors[i].amount < 0.5) i++;
+    if (creditors[j].amount < 0.5) j++;
+  }
+  return transfers;
+}
+
 export default function BoardDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -35,7 +79,6 @@ export default function BoardDetail() {
   }, [id, navigate]);
 
   const isHost = board?.hostId?._id === activeUserId;
-  const allPaid = board?.participantIds?.every((p) => board.paymentStatus?.[p._id] === true);
 
   const doAction = async (action, confirmMsg, apiCall) => {
     if (confirmMsg && !confirm(confirmMsg)) return;
@@ -44,18 +87,9 @@ export default function BoardDetail() {
       const res = await apiCall();
       setBoard(res.data);
     } catch (e) {
-      alert(e.response?.data?.error || `Failed to ${action}`);
+      alert(e.displayMessage || e.response?.data?.error || `Failed to ${action}`);
     } finally {
       setActionLoading(null);
-    }
-  };
-
-  const handleTogglePayment = async (userId, current) => {
-    try {
-      const res = await api.patch(`/boards/${id}/payments/${userId}`, { paid: !current });
-      setBoard(res.data);
-    } catch (e) {
-      alert(e.response?.data?.error || 'Failed to update payment');
     }
   };
 
@@ -116,7 +150,7 @@ export default function BoardDetail() {
                 </button>
               )}
             </>}
-            {board.status === 'pending' && isHost && allPaid && (
+            {board.status === 'pending' && isHost && (
               <button
                 onClick={() => doAction('complete', 'Mark this board as completed?',
                   () => api.post(`/boards/${id}/complete`))}
@@ -150,95 +184,58 @@ export default function BoardDetail() {
         <h2 className="font-heading text-xs font-semibold text-slate-500 uppercase tracking-widest mb-4">
           Settlement Summary
         </h2>
-        {board.participantIds?.length === 0 ? (
-          <p className="text-sm text-slate-500">No participants.</p>
-        ) : (
-          <div className="space-y-2">
-            {board.participantIds?.map((p) => {
-              const total = rowTotal(board, p._id);
-              return (
-                <div key={p._id}
+        {(() => {
+          const transfers = getBoardSettlements(board);
+          if (transfers.length === 0) {
+            return (
+              <div className="flex items-center gap-3 py-2">
+                <div className="w-8 h-8 rounded-full bg-emerald-500/15 flex items-center justify-center shrink-0">
+                  <svg className="w-4 h-4 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                  </svg>
+                </div>
+                <p className="text-sm text-slate-400">All settled — no transfers needed.</p>
+              </div>
+            );
+          }
+          return (
+            <div className="space-y-2">
+              {transfers.map((t, idx) => (
+                <div key={idx}
                   className="flex items-center justify-between py-3 border-b border-slate-700/50 last:border-0">
-                  <div className="flex items-center gap-2.5">
+                  <div className="flex items-center gap-2 text-sm min-w-0">
                     <span className="w-8 h-8 rounded-full flex items-center justify-center text-white
                                      text-xs font-bold font-heading shrink-0"
-                      style={{ backgroundColor: p.color }}>
-                      {p.name[0].toUpperCase()}
+                      style={{ backgroundColor: t.from.color }}>
+                      {t.from.name[0].toUpperCase()}
                     </span>
-                    <div className="text-sm">
-                      <span className="font-semibold text-slate-200">{p.name}</span>
-                      <span className="text-slate-500 mx-2">owes</span>
-                      <span className="font-semibold text-slate-300">{board.hostId?.name}</span>
-                    </div>
+                    <span className="font-semibold text-slate-200 truncate">{t.from.name}</span>
+                    <svg className="w-3.5 h-3.5 text-slate-600 shrink-0" fill="none" viewBox="0 0 24 24"
+                      stroke="currentColor" strokeWidth={2.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                    </svg>
+                    <span className="w-8 h-8 rounded-full flex items-center justify-center text-white
+                                     text-xs font-bold font-heading shrink-0"
+                      style={{ backgroundColor: t.to.color }}>
+                      {t.to.name[0].toUpperCase()}
+                    </span>
+                    <span className="font-semibold text-slate-200 truncate">{t.to.name}</span>
                   </div>
-                  <span className="font-heading font-bold text-slate-100 tabular-nums">{fmt(total)}</span>
+                  <span className="font-heading font-bold text-slate-100 tabular-nums ml-4 shrink-0">
+                    {fmt(t.amount)}
+                  </span>
                 </div>
-              );
-            })}
-          </div>
-        )}
+              ))}
+            </div>
+          );
+        })()}
       </div>
 
-      {/* Payment status (pending / completed) */}
-      {(board.status === 'pending' || board.status === 'completed') && (
-        <div className="card p-5">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="font-heading text-xs font-semibold text-slate-500 uppercase tracking-widest">
-              Payment Status
-            </h2>
-            {!isHost && <span className="text-xs text-slate-500">Only the host can mark payments</span>}
-            {isHost && board.status === 'pending' && !allPaid && (
-              <span className="text-xs text-amber-400">
-                {board.participantIds?.filter((p) => board.paymentStatus?.[p._id]).length}/
-                {board.participantIds?.length} paid
-              </span>
-            )}
-          </div>
-
-          <div className="space-y-2">
-            {board.participantIds?.map((p) => {
-              const paid = board.paymentStatus?.[p._id] === true;
-              const total = rowTotal(board, p._id);
-              return (
-                <div key={p._id}
-                  className={`flex items-center justify-between p-3.5 rounded-xl transition-colors ${
-                    paid ? 'bg-emerald-500/10 border border-emerald-500/20' : 'bg-slate-700/40 border border-slate-700'
-                  }`}>
-                  <div className="flex items-center gap-3">
-                    <input type="checkbox" checked={paid}
-                      onChange={() => isHost && board.status === 'pending' && handleTogglePayment(p._id, paid)}
-                      disabled={!isHost || board.status !== 'pending'}
-                      className="w-4 h-4 rounded border-slate-600 bg-slate-700 text-emerald-500
-                                 focus:ring-emerald-500 focus:ring-offset-0 disabled:cursor-default cursor-pointer" />
-                    <span className="w-8 h-8 rounded-full flex items-center justify-center text-white
-                                     text-xs font-bold font-heading shrink-0"
-                      style={{ backgroundColor: p.color }}>
-                      {p.name[0].toUpperCase()}
-                    </span>
-                    <span className="font-medium text-slate-200">{p.name}</span>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <span className="font-heading font-semibold text-slate-200 tabular-nums">{fmt(total)}</span>
-                    <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${
-                      paid
-                        ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/25'
-                        : 'bg-amber-500/15 text-amber-400 border border-amber-500/25'
-                    }`}>
-                      {paid ? 'Paid' : 'Pending'}
-                    </span>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-
-          {isHost && board.status === 'pending' && (
-            <p className="text-xs text-slate-500 mt-4">
-              Tick each person after they pay you back.
-              {allPaid && <span className="text-emerald-400 font-medium ml-1">All paid — you can mark this board completed.</span>}
-            </p>
-          )}
-        </div>
+      {/* Host action hint when pending */}
+      {board.status === 'pending' && isHost && (
+        <p className="text-xs text-slate-500 text-center">
+          Use the global Settlement page to confirm payments. Mark this board completed when everyone has settled.
+        </p>
       )}
 
       {showSplit && (

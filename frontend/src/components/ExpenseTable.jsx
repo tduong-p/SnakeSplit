@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useUser } from '../context/UserContext';
 import api from '../api/axios';
 
 const fmt = (n) =>
@@ -16,11 +17,40 @@ function colTotal(expense, people) {
   return people.reduce((s, p) => s + ((expense.amounts || {})[p._id] || 0), 0);
 }
 
+// Small clickable avatar row for selecting who paid
+function PayerPicker({ people, value, onChange }) {
+  return (
+    <div className="flex justify-center gap-1 mt-1.5 flex-wrap">
+      {people.map((p) => (
+        <button
+          key={p._id}
+          type="button"
+          title={p.name}
+          onClick={() => onChange(p._id)}
+          className={`w-6 h-6 rounded-full flex items-center justify-center text-white
+                       text-xs font-bold transition-all cursor-pointer ${
+            value === p._id
+              ? 'ring-2 ring-offset-1 ring-offset-slate-900 ring-blue-400 scale-110'
+              : 'opacity-40 hover:opacity-80'
+          }`}
+          style={{ backgroundColor: p.color }}
+        >
+          {p.name[0].toUpperCase()}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 export default function ExpenseTable({ board, onBoardUpdate }) {
+  const { activeUserId } = useUser();
   const people = getPeople(board);
   const isActive = board.status === 'active';
 
-  const [newCol, setNewCol] = useState({ label: '', amounts: {} });
+  // Default new column payer = current user if they're in the board, else host
+  const defaultPayer = people.find((p) => p._id === activeUserId)?._id || board.hostId._id;
+
+  const [newCol, setNewCol] = useState({ label: '', amounts: {}, paidBy: defaultPayer });
   const [submitting, setSubmitting] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [editData, setEditData] = useState({});
@@ -39,20 +69,28 @@ export default function ExpenseTable({ board, onBoardUpdate }) {
         if (val !== '' && Number(val) > 0) amounts[id] = Number(val);
       }
       const res = await api.post(`/boards/${board._id}/expenses`, {
-        label: newCol.label, amounts, isSplit: false,
+        label: newCol.label,
+        amounts,
+        isSplit: false,
+        paidBy: newCol.paidBy,
       });
       onBoardUpdate(res.data);
-      setNewCol({ label: '', amounts: {} });
+      setNewCol({ label: '', amounts: {}, paidBy: defaultPayer });
     } catch (e) {
-      alert(e.response?.data?.error || 'Failed to save');
+      alert(e.displayMessage || e.response?.data?.error || 'Failed to save');
     } finally {
       setSubmitting(false);
     }
   };
 
   const startEdit = (exp) => {
+    const payerId = exp.paidBy?._id || exp.paidBy || board.hostId._id;
     setEditingId(exp._id);
-    setEditData({ label: exp.label, amounts: { ...(exp.amounts || {}) } });
+    setEditData({
+      label: exp.label,
+      amounts: { ...(exp.amounts || {}) },
+      paidBy: payerId,
+    });
   };
 
   const saveEdit = async (expId) => {
@@ -61,7 +99,7 @@ export default function ExpenseTable({ board, onBoardUpdate }) {
       onBoardUpdate(res.data);
       setEditingId(null);
     } catch (e) {
-      alert(e.response?.data?.error || 'Failed to update');
+      alert(e.displayMessage || e.response?.data?.error || 'Failed to update');
     }
   };
 
@@ -71,7 +109,7 @@ export default function ExpenseTable({ board, onBoardUpdate }) {
       const res = await api.delete(`/boards/${board._id}/expenses/${expId}`);
       onBoardUpdate(res.data);
     } catch (e) {
-      alert(e.response?.data?.error || 'Failed to delete');
+      alert(e.displayMessage || e.response?.data?.error || 'Failed to delete');
     }
   };
 
@@ -88,6 +126,13 @@ export default function ExpenseTable({ board, onBoardUpdate }) {
     />
   );
 
+  // Resolve paidBy for display: may be populated object or plain ID string
+  const getPayer = (exp) => {
+    if (!exp.paidBy) return null;
+    const id = exp.paidBy._id || exp.paidBy;
+    return people.find((p) => p._id === id) || null;
+  };
+
   return (
     <div className="rounded-2xl border border-slate-700/60 overflow-hidden">
       <div className="overflow-x-auto">
@@ -98,59 +143,89 @@ export default function ExpenseTable({ board, onBoardUpdate }) {
                              uppercase tracking-wider sticky left-0 bg-slate-900/80 min-w-[140px]">
                 Name
               </th>
-              {board.expenses.map((exp) => (
-                <th key={exp._id} className="px-3 py-2 min-w-[120px] bg-slate-900/80">
-                  {editingId === exp._id ? (
-                    <input
-                      value={editData.label}
-                      onChange={(e) => setEditData((d) => ({ ...d, label: e.target.value }))}
-                      className="w-full bg-slate-700 border border-slate-500 text-slate-100 rounded-lg
-                                 px-2 py-1 text-xs text-center focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      placeholder="Label"
-                    />
-                  ) : (
-                    <span className="block text-xs font-medium text-slate-300 truncate max-w-[100px] mx-auto text-center">
-                      {exp.label || <span className="text-slate-600">—</span>}
-                    </span>
-                  )}
-                  {isActive && (
-                    <div className="flex justify-center gap-2 mt-1.5">
-                      {editingId === exp._id ? (
-                        <>
-                          <button onClick={() => saveEdit(exp._id)}
-                            className="text-xs text-emerald-400 hover:text-emerald-300 font-medium cursor-pointer">
-                            Save
-                          </button>
-                          <button onClick={() => setEditingId(null)}
-                            className="text-xs text-slate-500 hover:text-slate-300 cursor-pointer">
-                            Cancel
-                          </button>
-                        </>
-                      ) : (
-                        <>
-                          <button onClick={() => startEdit(exp)}
-                            className="text-xs text-blue-400 hover:text-blue-300 cursor-pointer">
-                            Edit
-                          </button>
-                          <button onClick={() => deleteCol(exp._id)}
-                            className="text-xs text-red-400 hover:text-red-300 cursor-pointer">
-                            Del
-                          </button>
-                        </>
-                      )}
-                    </div>
-                  )}
-                </th>
-              ))}
+
+              {board.expenses.map((exp) => {
+                const payer = getPayer(exp);
+                return (
+                  <th key={exp._id} className="px-3 py-2 min-w-[130px] bg-slate-900/80">
+                    {editingId === exp._id ? (
+                      <>
+                        <input
+                          value={editData.label}
+                          onChange={(e) => setEditData((d) => ({ ...d, label: e.target.value }))}
+                          className="w-full bg-slate-700 border border-slate-500 text-slate-100 rounded-lg
+                                     px-2 py-1 text-xs text-center focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          placeholder="Label"
+                        />
+                        <PayerPicker
+                          people={people}
+                          value={editData.paidBy}
+                          onChange={(id) => setEditData((d) => ({ ...d, paidBy: id }))}
+                        />
+                      </>
+                    ) : (
+                      <>
+                        <span className="block text-xs font-medium text-slate-300 truncate max-w-[110px] mx-auto text-center">
+                          {exp.label || <span className="text-slate-600">—</span>}
+                        </span>
+                        {payer && (
+                          <div className="flex items-center justify-center gap-1 mt-1" title={`Paid by ${payer.name}`}>
+                            <span
+                              className="w-5 h-5 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0"
+                              style={{ backgroundColor: payer.color }}
+                            >
+                              {payer.name[0].toUpperCase()}
+                            </span>
+                            <span className="text-xs text-slate-500 truncate max-w-[60px]">{payer.name}</span>
+                          </div>
+                        )}
+                      </>
+                    )}
+
+                    {isActive && (
+                      <div className="flex justify-center gap-2 mt-1.5">
+                        {editingId === exp._id ? (
+                          <>
+                            <button onClick={() => saveEdit(exp._id)}
+                              className="text-xs text-emerald-400 hover:text-emerald-300 font-medium cursor-pointer">
+                              Save
+                            </button>
+                            <button onClick={() => setEditingId(null)}
+                              className="text-xs text-slate-500 hover:text-slate-300 cursor-pointer">
+                              Cancel
+                            </button>
+                          </>
+                        ) : (
+                          <>
+                            <button onClick={() => startEdit(exp)}
+                              className="text-xs text-blue-400 hover:text-blue-300 cursor-pointer">
+                              Edit
+                            </button>
+                            <button onClick={() => deleteCol(exp._id)}
+                              className="text-xs text-red-400 hover:text-red-300 cursor-pointer">
+                              Del
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    )}
+                  </th>
+                );
+              })}
 
               {isActive && (
-                <th className="px-3 py-2 min-w-[130px] bg-blue-600/10 border-l border-blue-500/20">
+                <th className="px-3 py-2 min-w-[140px] bg-blue-600/10 border-l border-blue-500/20">
                   <input
                     value={newCol.label}
                     onChange={(e) => setNewCol((c) => ({ ...c, label: e.target.value }))}
                     placeholder="Label"
                     className="w-full bg-slate-700 border border-slate-600 text-slate-200 rounded-lg
                                px-2 py-1 text-xs text-center focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                  <PayerPicker
+                    people={people}
+                    value={newCol.paidBy}
+                    onChange={(id) => setNewCol((c) => ({ ...c, paidBy: id }))}
                   />
                   <p className="text-xs text-blue-400/60 mt-1 text-center font-normal">new column</p>
                 </th>
@@ -192,7 +267,10 @@ export default function ExpenseTable({ board, onBoardUpdate }) {
                     {editingId === exp._id
                       ? cellInput(
                           editData.amounts[person._id],
-                          (v) => setEditData((d) => ({ ...d, amounts: { ...d.amounts, [person._id]: v === '' ? '' : Number(v) } })),
+                          (v) => setEditData((d) => ({
+                            ...d,
+                            amounts: { ...d.amounts, [person._id]: v === '' ? '' : Number(v) },
+                          })),
                           () => saveEdit(exp._id)
                         )
                       : <span className="text-slate-300 tabular-nums">
@@ -213,13 +291,9 @@ export default function ExpenseTable({ board, onBoardUpdate }) {
                 )}
 
                 <td className="px-5 py-3 text-right">
-                  {person.isHost ? (
-                    <span className="text-xs text-slate-500 italic">receives</span>
-                  ) : (
-                    <span className="font-heading font-semibold text-slate-100 tabular-nums">
-                      {fmt(rowTotal(board, person._id))}
-                    </span>
-                  )}
+                  <span className="font-heading font-semibold text-slate-100 tabular-nums">
+                    {fmt(rowTotal(board, person._id))}
+                  </span>
                 </td>
               </tr>
             ))}
@@ -246,7 +320,7 @@ export default function ExpenseTable({ board, onBoardUpdate }) {
 
       {isActive && (
         <div className="px-5 py-3 bg-blue-600/5 border-t border-blue-500/20 flex items-center justify-between">
-          <p className="text-xs text-slate-500">Enter amounts, then press Enter or click Add.</p>
+          <p className="text-xs text-slate-500">Enter amounts, select who paid, then press Enter or click Add.</p>
           <button onClick={submitNew} disabled={!hasData || submitting}
             className="btn-primary px-5 py-2 text-xs">
             {submitting ? 'Saving...' : '+ Add Column'}

@@ -3,6 +3,13 @@ const router = express.Router();
 const Board = require('../models/Board');
 const connectDB = require('../db');
 
+async function populateBoard(board) {
+  await board.populate('hostId', 'name color');
+  await board.populate('participantIds', 'name color');
+  await board.populate('expenses.paidBy', 'name color');
+  return board;
+}
+
 router.get('/', async (req, res, next) => {
   try {
     await connectDB();
@@ -11,6 +18,7 @@ router.get('/', async (req, res, next) => {
     const boards = await Board.find(filter)
       .populate('hostId', 'name color')
       .populate('participantIds', 'name color')
+      .populate('expenses.paidBy', 'name color')
       .sort({ date: -1 });
     res.json(boards);
   } catch (err) { next(err); }
@@ -34,8 +42,7 @@ router.post('/', async (req, res, next) => {
       participantIds,
       paymentStatus: initialPaymentStatus,
     });
-    await board.populate('hostId', 'name color');
-    await board.populate('participantIds', 'name color');
+    await populateBoard(board);
     res.status(201).json(board);
   } catch (err) { next(err); }
 });
@@ -45,7 +52,8 @@ router.get('/:id', async (req, res, next) => {
     await connectDB();
     const board = await Board.findById(req.params.id)
       .populate('hostId', 'name color')
-      .populate('participantIds', 'name color');
+      .populate('participantIds', 'name color')
+      .populate('expenses.paidBy', 'name color');
     if (!board) return res.status(404).json({ error: 'Board not found' });
     res.json(board);
   } catch (err) { next(err); }
@@ -61,6 +69,7 @@ router.patch('/:id', async (req, res, next) => {
     if (name?.trim()) board.name = name.trim();
     if (date) board.date = date;
     await board.save();
+    await populateBoard(board);
     res.json(board);
   } catch (err) { next(err); }
 });
@@ -73,8 +82,7 @@ router.post('/:id/close', async (req, res, next) => {
     if (board.status !== 'active') return res.status(400).json({ error: 'Board is not active' });
     board.status = 'pending';
     await board.save();
-    await board.populate('hostId', 'name color');
-    await board.populate('participantIds', 'name color');
+    await populateBoard(board);
     res.json(board);
   } catch (err) { next(err); }
 });
@@ -85,14 +93,9 @@ router.post('/:id/complete', async (req, res, next) => {
     const board = await Board.findById(req.params.id);
     if (!board) return res.status(404).json({ error: 'Board not found' });
     if (board.status !== 'pending') return res.status(400).json({ error: 'Board is not pending' });
-    const allPaid = board.participantIds.every(
-      (pid) => board.paymentStatus.get(pid.toString()) === true
-    );
-    if (!allPaid) return res.status(400).json({ error: 'Not all participants have paid yet' });
     board.status = 'completed';
     await board.save();
-    await board.populate('hostId', 'name color');
-    await board.populate('participantIds', 'name color');
+    await populateBoard(board);
     res.json(board);
   } catch (err) { next(err); }
 });
@@ -104,19 +107,23 @@ router.post('/:id/expenses', async (req, res, next) => {
     if (!board) return res.status(404).json({ error: 'Board not found' });
     if (board.status !== 'active') return res.status(400).json({ error: 'Board is not active' });
 
-    const { label, amounts, isSplit, totalAmount, splitAmong } = req.body;
-    let finalAmounts = {};
+    const { label, amounts, isSplit, totalAmount, splitAmong, paidBy } = req.body;
 
+    const boardPeople = new Set([
+      board.hostId.toString(),
+      ...board.participantIds.map((p) => p.toString()),
+    ]);
+
+    // Resolve paidBy: must be a board member, default to host
+    const resolvedPaidBy = paidBy && boardPeople.has(paidBy) ? paidBy : board.hostId.toString();
+
+    let finalAmounts = {};
     if (isSplit && totalAmount && splitAmong?.length) {
       const share = Math.round((totalAmount / splitAmong.length) * 100) / 100;
       for (const uid of splitAmong) finalAmounts[uid] = share;
     } else if (amounts && typeof amounts === 'object') {
-      const validIds = new Set([
-        board.hostId.toString(),
-        ...board.participantIds.map((p) => p.toString()),
-      ]);
       for (const [uid, amt] of Object.entries(amounts)) {
-        if (validIds.has(uid) && typeof amt === 'number' && amt >= 0) {
+        if (boardPeople.has(uid) && typeof amt === 'number' && amt >= 0) {
           finalAmounts[uid] = amt;
         }
       }
@@ -124,10 +131,9 @@ router.post('/:id/expenses', async (req, res, next) => {
       return res.status(400).json({ error: 'Invalid expense data' });
     }
 
-    board.expenses.push({ label: label || '', amounts: finalAmounts, isSplit: !!isSplit });
+    board.expenses.push({ label: label || '', amounts: finalAmounts, isSplit: !!isSplit, paidBy: resolvedPaidBy });
     await board.save();
-    await board.populate('hostId', 'name color');
-    await board.populate('participantIds', 'name color');
+    await populateBoard(board);
     res.status(201).json(board);
   } catch (err) { next(err); }
 });
@@ -142,26 +148,32 @@ router.patch('/:id/expenses/:expenseId', async (req, res, next) => {
     const expense = board.expenses.id(req.params.expenseId);
     if (!expense) return res.status(404).json({ error: 'Expense not found' });
 
-    const { label, amounts } = req.body;
+    const { label, amounts, paidBy } = req.body;
     if (label !== undefined) expense.label = label;
 
     if (amounts && typeof amounts === 'object') {
-      const validIds = new Set([
+      const boardPeople = new Set([
         board.hostId.toString(),
         ...board.participantIds.map((p) => p.toString()),
       ]);
-      // Replace the full map so cleared cells (sent as '' or omitted) are actually removed
       expense.amounts = new Map();
       for (const [uid, amt] of Object.entries(amounts)) {
-        if (validIds.has(uid) && typeof amt === 'number' && amt >= 0) {
+        if (boardPeople.has(uid) && typeof amt === 'number' && amt >= 0) {
           expense.amounts.set(uid, amt);
         }
       }
     }
 
+    if (paidBy) {
+      const boardPeople = new Set([
+        board.hostId.toString(),
+        ...board.participantIds.map((p) => p.toString()),
+      ]);
+      if (boardPeople.has(paidBy)) expense.paidBy = paidBy;
+    }
+
     await board.save();
-    await board.populate('hostId', 'name color');
-    await board.populate('participantIds', 'name color');
+    await populateBoard(board);
     res.json(board);
   } catch (err) { next(err); }
 });
@@ -177,8 +189,7 @@ router.delete('/:id/expenses/:expenseId', async (req, res, next) => {
       (e) => e._id.toString() !== req.params.expenseId
     );
     await board.save();
-    await board.populate('hostId', 'name color');
-    await board.populate('participantIds', 'name color');
+    await populateBoard(board);
     res.json(board);
   } catch (err) { next(err); }
 });
@@ -195,8 +206,7 @@ router.patch('/:id/payments/:userId', async (req, res, next) => {
 
     board.paymentStatus.set(req.params.userId, paid);
     await board.save();
-    await board.populate('hostId', 'name color');
-    await board.populate('participantIds', 'name color');
+    await populateBoard(board);
     res.json(board);
   } catch (err) { next(err); }
 });
